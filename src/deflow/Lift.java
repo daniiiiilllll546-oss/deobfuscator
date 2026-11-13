@@ -44,6 +44,9 @@ public final class Lift {
                 if (e.isDirectory()) continue;
                 try (var s = zip.getInputStream(e)) { entries.put(e.getName(), s.readAllBytes()); }
             }
+        } catch (java.io.IOException e) {
+            System.err.println("not a readable jar/zip (" + e.getMessage() + ")");
+            System.exit(1);
         }
 
         FF = System.getenv("DEFLOW_VM");          // manual override, internal name

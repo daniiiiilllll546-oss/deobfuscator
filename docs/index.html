@@ -95,12 +95,23 @@ h2 .g{color:#6b6c6f}
 .panes{position:relative;height:452px}
 .pane{position:absolute;inset:0;overflow:auto;transition:opacity .4s ease}
 .pane.hide{opacity:0;pointer-events:none}
-#pLift{display:flex;align-items:center;justify-content:center}
+#pLift{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px}
 pre{font-family:var(--mono);font-size:12.5px;line-height:1.72;padding:16px 18px;color:var(--mid);white-space:pre}
 #pLift pre{font-size:clamp(13px,1.5vw,15.5px);line-height:1.85}
 pre .k{color:var(--ink)} pre .n{color:var(--warm)} pre .c{color:var(--faint)}
 pre .x{transition:color .3s,text-decoration-color .3s,opacity .3s;text-decoration:line-through;text-decoration-color:transparent}
 .lifting pre .x{color:var(--cut);text-decoration-color:var(--cut);opacity:.7}
+.tally{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);border-bottom:1px solid var(--line);width:calc(100% - 36px)}
+.tally div{padding:14px 12px}.tally div+div{border-left:1px solid var(--line)}
+.tally b{display:block;font-family:var(--mono);font-weight:400;font-size:22px;color:var(--cut);letter-spacing:-.03em}
+.tally span{display:block;margin-top:4px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+@media(max-width:640px){.tally{grid-template-columns:1fr 1fr}.tally div:nth-child(3){border-left:0}.tally div:nth-child(n+3){border-top:1px solid var(--line)}}
+.hcmd{margin-top:26px;background:var(--s1);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.hcmd code{font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--ink);overflow-wrap:anywhere}
+.hcmd .p{color:var(--faint)}
+.hcmd+.cta{margin-top:14px}
+:focus-visible{outline:2px solid var(--ok2);outline-offset:2px}
+@media(max-width:640px){.proof svg{display:none}.cp{min-height:44px;min-width:60px}.seg button{min-height:40px}.run{min-height:44px}}
 .foot{display:flex;justify-content:space-between;gap:12px;padding:10px 14px;border-top:1px solid var(--line);font-family:var(--mono);font-size:12px;color:var(--dim)}
 .foot .ok{color:var(--ok2)}
 
@@ -196,8 +207,9 @@ footer{margin-top:120px;border-top:1px solid var(--line);padding:40px 0 56px}
     <h1>deflow.<span class="g">Obfuscated Java, back to real code.</span></h1>
     <div class="hright">
       <p class="lede"><b>Drop in a jar. Get source back.</b> deflow unpacks it, finds the VM, lifts every method to real bytecode, verifies it and decompiles it. One command.</p>
+      <div class="hcmd"><code><span class="p">$ </span>curl -fsSL https://raw.githubusercontent.com/daniiiiilllll546-oss/deobfuscator/main/install.sh <span class="p">|</span> bash</code></div>
       <div class="cta">
-        <button class="btn p" data-copy="git clone https://github.com/daniiiiilllll546-oss/deobfuscator.git ~/.claude/skills/deflow">Copy install command</button>
+        <button class="btn p" data-copy="curl -fsSL https://raw.githubusercontent.com/daniiiiilllll546-oss/deobfuscator/main/install.sh | bash">Copy install command</button>
         <a class="btn s" href="https://github.com/daniiiiilllll546-oss/deobfuscator" target="_blank" rel="noopener">Read the source</a>
       </div>
       <p class="fine">Free and open source. Needs <b>Java 17+</b>.<br>Everything else downloads itself. <a href="#limits">Known limits</a></p>
@@ -255,10 +267,10 @@ footer{margin-top:120px;border-top:1px solid var(--line);padding:40px 0 56px}
   <span class="k">return</span> sum;
 }
 
-<span class="c">// 30 lines of interpreter, 6 lines of Java.</span>
-<span class="c">// scaffolding deleted · frames rebuilt · verify OK</span></pre></div>
+<span class="c">// 26 lines of interpreter, 6 lines of Java.</span></pre>
+<div class="tally"><div><b>18</b><span>push / pop removed</span></div><div><b>12</b><span>box / unbox removed</span></div><div><b>11</b><span>VM locals → real slots</span></div><div><b>9</b><span>pc jumps → labels</span></div></div></div>
       </div>
-      <div class="foot"><span id="footL">interpreter form · 2 methods · 30 lines</span><span>illustrative method</span></div>
+      <div class="foot"><span id="footL">interpreter form · 2 methods · 26 lines</span><span>illustrative method</span></div>
     </div>
 
     <div class="card nums" id="numbers">
@@ -283,10 +295,9 @@ footer{margin-top:120px;border-top:1px solid var(--line);padding:40px 0 56px}
   <div class="ways">
     <div class="card way">
       <div class="hd"><h4>Install</h4><span>once</span></div>
-      <p>Clone it as a Claude Code skill and put the command on your PATH.</p>
+      <p>One line. Installs the Claude Code skill and puts deflow on your PATH. Run again to update.</p>
       <div class="term">
-        <div class="ln"><code><span class="p">$ </span>git clone https://github.com/daniiiiilllll546-oss/deobfuscator.git ~/.claude/skills/deflow</code><button class="cp" data-copy="git clone https://github.com/daniiiiilllll546-oss/deobfuscator.git ~/.claude/skills/deflow">copy</button></div>
-        <div class="ln"><code><span class="p">$ </span>ln -s ~/.claude/skills/deflow/deflow /usr/local/bin/deflow</code><button class="cp" data-copy="ln -s ~/.claude/skills/deflow/deflow /usr/local/bin/deflow">copy</button></div>
+        <div class="ln"><code><span class="p">$ </span>curl -fsSL https://raw.githubusercontent.com/daniiiiilllll546-oss/deobfuscator/main/install.sh | bash</code><button class="cp" data-copy="curl -fsSL https://raw.githubusercontent.com/daniiiiilllll546-oss/deobfuscator/main/install.sh | bash">copy</button></div>
       </div>
     </div>
     <div class="card way">
@@ -371,7 +382,7 @@ const demo=document.getElementById('demo'),pO=document.getElementById('pObf'),pL
 let st='obf',busy=false;
 function show(v){st=v;seg.forEach(b=>b.classList.toggle('on',b.dataset.v===v));pO.classList.toggle('hide',v!=='obf');pL.classList.toggle('hide',v!=='lift');demo.classList.remove('lifting');
   if(v==='lift'){fl.innerHTML='<span class="ok">■ verified</span> · 1 method · 6 lines';rb.querySelector('span').textContent='show obfuscated'}
-  else{fl.textContent='interpreter form · 2 methods · 30 lines';rb.querySelector('span').textContent='run deflow'}}
+  else{fl.textContent='interpreter form · 2 methods · 26 lines';rb.querySelector('span').textContent='run deflow'}}
 function lift(){if(busy)return;if(st==='lift'){show('obf');return}busy=true;pO.scrollTop=0;demo.classList.add('lifting');fl.textContent='stripping scaffolding…';
   setTimeout(()=>{fl.textContent='rebuilding frames…'},700);setTimeout(()=>{show('lift');busy=false},1500)}
 rb.addEventListener('click',lift);

@@ -116,7 +116,7 @@ for j in "${TARGETS[@]}"; do
 done
 
 # ---- lift, verify, decompile each jar ----
-SUMMARY=()
+SUMMARY=(); OKS=0
 for J in "${TARGETS[@]}"; do
   JN="$(basename "$J")"; JN="${JN%.*}"
   D="$OUT"; [ ${#TARGETS[@]} -gt 1 ] && D="$OUT/$JN"
@@ -125,7 +125,7 @@ for J in "${TARGETS[@]}"; do
   { echo "deflow report: $JN"; echo; echo "## lift"; } > "$R"
 
   set +e; java -cp "$TOOLCP" deflow.Lift "$J" "$LJ" | tee -a "$R"; rc=${PIPESTATUS[0]}; set -e
-  case $rc in 0|3) ;; *) echo "deflow: lifter failed on $JN (exit $rc)" | tee -a "$R" >&2; SUMMARY+=("$JN: lifter failed"); continue ;; esac
+  case $rc in 0|3) OKS=$((OKS+1)) ;; *) echo "deflow: skipped $JN, see above" | tee -a "$R" >&2; SUMMARY+=("$JN: skipped (not a readable jar)"); continue ;; esac
   VM="$(sed -n 's/^vm: \([^ ]*\)$/\1/p' "$R")"
 
   VCP=()
@@ -172,3 +172,4 @@ done
 
 echo; echo "deflow done -> $OUT"
 for s in "${SUMMARY[@]}"; do echo "  $s"; done
+[ "$OKS" -gt 0 ] || { echo "deflow: nothing could be processed" >&2; exit 1; }

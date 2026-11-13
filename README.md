@@ -31,13 +31,13 @@ Needs a JDK 17+ and `curl`. ASM, Vineflower and CFR download on first run (check
 pinned) into `~/.cache/deflow`.
 
 ```bash
-git clone https://github.com/daniiiiilllll546-oss/deobfuscator.git ~/.claude/skills/deflow
-ln -s ~/.claude/skills/deflow/deflow /usr/local/bin/deflow
+curl -fsSL https://raw.githubusercontent.com/daniiiiilllll546-oss/deobfuscator/main/install.sh | bash
 ```
 
-The clone path makes it a **Claude Code skill**: hand Claude an obfuscated
-jar (or say `/deflow path/to/file`) and it runs deflow and explains the
-report. The symlink is for using it directly from a terminal.
+This clones deflow into `~/.claude/skills/deflow`, which makes it a **Claude
+Code skill** (hand Claude an obfuscated jar, or say `/deflow path/to/file`),
+and links the `deflow` command into a writable folder on your PATH, no sudo.
+Run it again to update.
 
 ## Options
 
