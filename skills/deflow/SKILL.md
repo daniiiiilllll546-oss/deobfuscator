@@ -44,9 +44,11 @@ With several jars in the input, each gets its own subfolder.
    - `VERIFY ERRORS` — must be 0; anything else is a lifter bug, quote it;
    - "methods no decompiler could rebuild" — those show as bytecode in `src/`;
    - where the source is.
-4. If no VM was detected, say so: the jar was decompiled as-is. The protection
-   is something else (string encryption, renaming, a different flattening
-   scheme) and needs a different approach.
+4. If no VM was detected, say so: the jar was decompiled as-is and `src/` is
+   the result. Then glance at the source: if it reads normally, the jar simply
+   wasn't VM-obfuscated. Only if it still looks scrambled (encrypted strings,
+   renamed everything, a different flattening scheme) say that another kind of
+   protection is present.
 
 Requirements: JDK 17+ (`java` and `javac`) and `curl`. For `.rar`/`.7z`,
 `7z` or `bsdtar` (built into macOS and most Linux).

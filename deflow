@@ -32,8 +32,8 @@ command -v java >/dev/null && command -v javac >/dev/null \
 
 # Resolve this script's real location (works through symlinks on PATH).
 SELF="${BASH_SOURCE[0]}"
-while [ -L "$SELF" ]; do L="$(readlink "$SELF")"; case "$L" in /*) SELF="$L" ;; *) SELF="$(dirname "$SELF")/$L" ;; esac; done
-HERE="$(cd "$(dirname "$SELF")" && pwd)"
+while [ -L "$SELF" ]; do L="$(readlink "$SELF")"; case "$L" in /*) SELF="$L" ;; *) SELF="$(cd -P "$(dirname "$SELF")" && pwd)/$L" ;; esac; done
+HERE="$(cd -P "$(dirname "$SELF")" && pwd)"
 
 CACHE="${DEFLOW_HOME:-$HOME/.cache/deflow}"
 mkdir -p "$CACHE/lib"
