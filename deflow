@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+# deflow: un-flatten VM-obfuscated Java in one command.
+# Give it a .jar, .zip, .rar, .7z, .tar(.gz), a folder or a .class file.
+# Out comes <name>-deflow/: the lifted jar, decompiled source, and report.txt.
+set -euo pipefail
+
+usage() {
+  cat >&2 <<'EOF'
+usage: deflow <file-or-folder> [-o outdir] [--cp jar-or-dir]...
+
+  <file-or-folder>  .jar/.war, .zip, .rar, .7z, .tar(.gz/.xz), folder, or .class
+  -o outdir         where to write results (default: ./<name>-deflow)
+  --cp path         extra library jars (or a folder of them) for verification,
+                    e.g. the game or framework the jar was built against
+EOF
+  exit 1
+}
+
+IN=""; OUT=""; CP=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) [ $# -ge 2 ] || usage; OUT="$2"; shift 2 ;;
+    --cp) [ $# -ge 2 ] || usage; CP+=("$2"); shift 2 ;;
+    -h|--help) usage ;;
+    *) [ -z "$IN" ] || usage; IN="$1"; shift ;;
+  esac
+done
+[ -n "$IN" ] || usage
+[ -e "$IN" ] || { echo "deflow: not found: $IN" >&2; exit 1; }
+command -v java >/dev/null && command -v javac >/dev/null \
+  || { echo "deflow: needs a JDK 17+ on PATH (java and javac)" >&2; exit 1; }
+
+# Resolve this script's real location (works through symlinks on PATH).
+SELF="${BASH_SOURCE[0]}"
+while [ -L "$SELF" ]; do L="$(readlink "$SELF")"; case "$L" in /*) SELF="$L" ;; *) SELF="$(dirname "$SELF")/$L" ;; esac; done
+HERE="$(cd "$(dirname "$SELF")" && pwd)"
+
+CACHE="${DEFLOW_HOME:-$HOME/.cache/deflow}"
+mkdir -p "$CACHE/lib"
+
+# ---- dependencies: ASM + Vineflower from Maven Central, pinned by SHA-1 ----
+M=https://repo1.maven.org/maven2
+DEPS=(
+  "2ceea6ab43bcae1979b2a6d85fc0ca429877e5ab org/ow2/asm/asm/9.9.1/asm-9.9.1.jar"
+  "b6b1b3366296163b4b1f540731aad0a2baa484d8 org/ow2/asm/asm-tree/9.9.1/asm-tree-9.9.1.jar"
+  "1ab8d9316ef7a67240087919a708246c37ed1660 org/ow2/asm/asm-analysis/9.9.1/asm-analysis-9.9.1.jar"
+  "e51f5b0ae0b0c1960687ae970a2a3434d39d8abb org/ow2/asm/asm-util/9.9.1/asm-util-9.9.1.jar"
+  "f02c1f554d5bd9cc0fd74d4977efba364d85e739 org/vineflower/vineflower/1.11.2/vineflower-1.11.2.jar"
+  "48ef4892cfe8feffddbbd0ff077735140557db74 org/benf/cfr/0.152/cfr-0.152.jar"
+)
+sha1() { (shasum -a 1 "$1" 2>/dev/null || sha1sum "$1") | cut -c1-40; }
+LIBCP=""
+for d in "${DEPS[@]}"; do
+  want="${d%% *}"; path="${d#* }"; f="$CACHE/lib/$(basename "$path")"
+  if [ ! -s "$f" ] || [ "$(sha1 "$f")" != "$want" ]; then
+    echo "deflow: downloading $(basename "$path")"
+    curl -fsSL "$M/$path" -o "$f.part" || { echo "deflow: download failed: $M/$path" >&2; exit 1; }
+    [ "$(sha1 "$f.part")" = "$want" ] || { rm -f "$f.part"; echo "deflow: checksum mismatch: $path" >&2; exit 1; }
+    mv "$f.part" "$f"
+  fi
+  case "$f" in *vineflower-*) DECOMP="$f" ;; *cfr-*) CFR="$f" ;; *) LIBCP="$LIBCP${LIBCP:+:}$f" ;; esac
+done
+
+# ---- build the lifter once per checkout (rebuilt when sources change) ----
+CLS="$CACHE/classes-$(printf %s "$HERE" | cksum | cut -d' ' -f1)"
+if [ ! -f "$CLS/.stamp" ] || [ -n "$(find "$HERE/src" -name '*.java' -newer "$CLS/.stamp")" ]; then
+  echo "deflow: building lifter"
+  rm -rf "$CLS"; mkdir -p "$CLS"
+  javac -nowarn -d "$CLS" -cp "$LIBCP" "$HERE"/src/deflow/*.java
+  touch "$CLS/.stamp"
+fi
+TOOLCP="$CLS:$LIBCP"
+
+# ---- unpack whatever we were given ----
+WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
+mkdir -p "$WORK/in" "$WORK/nested"
+lower() { printf %s "$1" | tr '[:upper:]' '[:lower:]'; }
+extract() {  # extract <archive> <dir>
+  mkdir -p "$2"
+  if command -v 7z >/dev/null && 7z x -y -o"$2" "$1" >/dev/null 2>&1; then return 0; fi
+  if command -v bsdtar >/dev/null && bsdtar -xf "$1" -C "$2" 2>/dev/null; then return 0; fi
+  if command -v unar >/dev/null && unar -q -f -o "$2" "$1" >/dev/null 2>&1; then return 0; fi
+  if command -v unzip >/dev/null && unzip -q -o "$1" -d "$2" 2>/dev/null; then return 0; fi
+  echo "deflow: could not unpack $1 (install 7z or bsdtar)" >&2; return 1
+}
+is_archive() { case "$(lower "$1")" in *.zip|*.rar|*.7z|*.tar|*.tar.gz|*.tgz|*.tar.xz|*.txz|*.tar.bz2|*.gz|*.xz) return 0 ;; esac; return 1; }
+
+NAME="$(basename "$IN")"
+case "$(lower "$NAME")" in
+  *.jar|*.war|*.ear) cp "$IN" "$WORK/in/" ;;
+  *.class) cp "$IN" "$WORK/in/" ;;
+  *) if [ -d "$IN" ]; then cp -R "$IN/." "$WORK/in/"
+     elif is_archive "$NAME"; then extract "$IN" "$WORK/in"
+     else cp "$IN" "$WORK/in/$NAME.jar"   # unknown extension: try it as a jar
+     fi ;;
+esac
+# archives inside the archive (one level deep)
+while IFS= read -r a; do extract "$a" "$a.d" && rm -f "$a"; done < <(find "$WORK/in" -type f | while IFS= read -r f; do is_archive "$f" && echo "$f"; done)
+
+BASE="${NAME%.*}"; BASE="${BASE%.tar}"
+OUT="${OUT:-$PWD/$BASE-deflow}"
+mkdir -p "$OUT"; OUT="$(cd "$OUT" && pwd)"
+
+TARGETS=()
+while IFS= read -r j; do TARGETS+=("$j"); done < <(find "$WORK/in" -type f \( -iname '*.jar' -o -iname '*.war' -o -iname '*.ear' \) | sort)
+# loose .class files become one jar
+if [ -n "$(find "$WORK/in" -type f -name '*.class' -print -quit)" ]; then
+  (cd "$WORK/in" && find . -type f -name '*.class' | sed 's#^\./##' > "$WORK/classes.txt" && zip -q "$WORK/$BASE-classes.jar" -@ < "$WORK/classes.txt")
+  TARGETS+=("$WORK/$BASE-classes.jar")
+fi
+[ ${#TARGETS[@]} -gt 0 ] || { echo "deflow: no .jar or .class files found in $IN" >&2; exit 1; }
+
+# libraries bundled inside the jars go on the verification classpath
+for j in "${TARGETS[@]}"; do
+  unzip -q -o "$j" 'META-INF/jars/*' 'BOOT-INF/lib/*' 'WEB-INF/lib/*' 'lib/*.jar' -d "$WORK/nested/$(basename "$j")" 2>/dev/null || true
+done
+
+# ---- lift, verify, decompile each jar ----
+SUMMARY=()
+for J in "${TARGETS[@]}"; do
+  JN="$(basename "$J")"; JN="${JN%.*}"
+  D="$OUT"; [ ${#TARGETS[@]} -gt 1 ] && D="$OUT/$JN"
+  mkdir -p "$D"; R="$D/report.txt"; LJ="$D/$JN.deflow.jar"
+  echo; echo "== $JN"
+  { echo "deflow report: $JN"; echo; echo "## lift"; } > "$R"
+
+  set +e; java -cp "$TOOLCP" deflow.Lift "$J" "$LJ" | tee -a "$R"; rc=${PIPESTATUS[0]}; set -e
+  case $rc in 0|3) ;; *) echo "deflow: lifter failed on $JN (exit $rc)" | tee -a "$R" >&2; SUMMARY+=("$JN: lifter failed"); continue ;; esac
+  VM="$(sed -n 's/^vm: \([^ ]*\)$/\1/p' "$R")"
+
+  VCP=()
+  for o in "${TARGETS[@]}"; do [ "$o" = "$J" ] || VCP+=("$o"); done
+  VCP+=("$WORK/nested")
+  [ ${#CP[@]} -gt 0 ] && VCP+=("${CP[@]}")
+  echo; echo "## verify" | tee -a "$R"
+  set +e; DEFLOW_VM="$VM" java -cp "$TOOLCP" deflow.Verify "$LJ" "${VCP[@]}" | tee -a "$R"; vrc=${PIPESTATUS[0]}; set -e
+
+  echo; echo "## decompile" | tee -a "$R"
+  # Vineflower; -mpm caps time per method so one huge method can't hang the run.
+  rm -rf "$D/src"; mkdir -p "$D/src"
+  set +e; java -jar "$DECOMP" -mpm="${DEFLOW_METHOD_TIMEOUT:-60}" -log=WARN "$LJ" "$D/src" > "$D/decompile.log" 2>&1; crc=$?; set -e
+  for z in "$D"/src/*.jar; do [ -f "$z" ] && unzip -q -o "$z" -d "$D/src" && rm -f "$z"; done
+  # Second opinion: classes Vineflower gave up on go through CFR, one class at a time,
+  # capped at DEFLOW_CLASS_TIMEOUT seconds each (CFR can hang on huge methods).
+  # CFR's file replaces Vineflower's only if it finished without a decompile failure.
+  find "$D/src" -name '*.java' -exec grep -l "Couldn't be decompiled" {} + 2>/dev/null > "$WORK/bad.txt" || true
+  nb=$(wc -l < "$WORK/bad.txt" | tr -d ' ')
+  if [ "$nb" -gt 0 ]; then
+    echo "retrying $nb classes with CFR" | tee -a "$R"
+    export CFR LJ D WORK; export DEFLOW_CLASS_TIMEOUT="${DEFLOW_CLASS_TIMEOUT:-30}"
+    P=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4) / 2 )); [ "$P" -ge 2 ] || P=2
+    tr '\n' '\0' < "$WORK/bad.txt" | xargs -0 -P "$P" -I{} bash -c '
+      f="$1"; rel="${f#$D/src/}"; cls="${rel%.java}"; cls="${cls//\//.}"
+      re="^$(printf %s "$cls" | sed "s/[.\$]/\\\\&/g")(\\\$.*)?\$"
+      o="$WORK/cfr/$(printf %s "$rel" | cksum | cut -d" " -f1)"
+      perl -e "alarm shift; exec @ARGV" "$DEFLOW_CLASS_TIMEOUT" java -jar "$CFR" "$LJ" --jarfilter "$re" --outputdir "$o" --silent true >/dev/null 2>&1 || exit 0
+      [ -s "$o/$rel" ] && ! grep -q "Exception decompiling\|This method has failed to decompile" "$o/$rel" && cp "$o/$rel" "$f" && echo fixed
+    ' _ {} > "$WORK/fixed.txt" 2>/dev/null || true
+    echo "CFR fixed $(wc -l < "$WORK/fixed.txt" | tr -d ' ') of $nb" | tee -a "$R"
+  fi
+  left=$(find "$D/src" -name '*.java' -exec grep -c "Couldn't be decompiled" {} + 2>/dev/null | awk -F: '{s+=$NF} END{print s+0}' || true)
+  echo "methods no decompiler could rebuild: $left (bytecode shown in their place)" | tee -a "$R"
+  n=$(find "$D/src" -name '*.java' 2>/dev/null | wc -l | tr -d ' ')
+  echo "decompiled $n .java files -> $D/src (decompiler exit $crc)" | tee -a "$R"
+
+  lifted="$(sed -n 's/^methods lifted: *//p' "$R")"; kept="$(sed -n 's/^methods kept: *\([0-9]*\).*/\1/p' "$R")"
+  verr="$(sed -n 's/^VERIFY ERRORS: *//p' "$R")"
+  if [ -z "$VM" ]; then SUMMARY+=("$JN: no VM obfuscation found, decompiled as-is, verify errors ${verr:-?}")
+  else SUMMARY+=("$JN: ${lifted:-0} methods lifted, ${kept:-0} kept as interpreter, verify errors ${verr:-?}"); fi
+  [ "$vrc" = 0 ] || SUMMARY+=("  !! verifier found errors, see $R")
+done
+
+echo; echo "deflow done -> $OUT"
+for s in "${SUMMARY[@]}"; do echo "  $s"; done

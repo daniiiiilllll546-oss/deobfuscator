@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>deflow — un-flatten VM-obfuscated Java</title>
+<meta name="description" content="deflow deobfuscates VM-flattened Java in one command: give it a jar, zip, rar or folder and get verified, decompiled source back. CLI and Claude Code skill.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#090a0b; --s1:#0f1011; --s2:#151617; --s3:#1a1b1c;
+  --line:#1e2022; --line2:#2a2d30;
+  --ink:#e9e9ec; --mid:#a1a2a6; --dim:#787879; --faint:#4a4b4e;
+  --ok:#418d68; --ok2:#5fb98c; --cut:#c2574a; --warm:#c9a46a;
+  --sans:'Geist',ui-sans-serif,system-ui,-apple-system,sans-serif;
+  --mono:'Geist Mono','Roboto Mono',ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.wrap{max-width:1200px;margin:0 auto;padding:0 32px}
+@media(max-width:640px){.wrap{padding:0 16px}}
+.mono{font-family:var(--mono)}
+
+/* banner + nav */
+.banner{border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12.5px;color:var(--dim);text-align:center;padding:9px 16px}
+.banner .tag{color:var(--ok2);margin-right:10px}
+.banner a{color:var(--ink);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--faint)}
+nav{position:sticky;top:0;z-index:40;background:rgba(9,10,11,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
+.logo{display:flex;align-items:center;gap:11px;font-weight:550;font-size:19px;letter-spacing:-.03em}
+.navl{display:flex;align-items:center;gap:30px}
+.links{display:flex;gap:26px;font-size:14.5px;color:var(--mid);padding-left:30px;border-left:1px solid var(--line2);height:22px;align-items:center}
+.links a:hover{color:var(--ink)}
+.navr{display:flex;gap:18px;align-items:center;font-size:14.5px;color:var(--mid)}
+.navr a.gh:hover{color:var(--ink)}
+@media(max-width:820px){.links,.navr a.gh{display:none}}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:46px;padding:0 22px;font-size:15px;font-weight:500;letter-spacing:-.01em;white-space:nowrap;transition:background .15s,color .15s}
+.btn.p{background:var(--ink);color:var(--bg);border-radius:0}
+.btn.p:hover{background:#fff}
+.btn.s{background:var(--s3);color:var(--mid);border-radius:12px}
+.btn.s:hover{color:var(--ink);background:#202123}
+.btn.sm{height:38px;padding:0 16px;font-size:14px}
+
+/* hero */
+.hero{padding:40px 0 0}
+.proof{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:14.5px;color:var(--mid)}
+.proof b{color:var(--ink);font-weight:500}
+.proof .sep{color:var(--faint)}
+.hgrid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:48px;align-items:end;margin-top:44px}
+@media(max-width:960px){.hgrid{grid-template-columns:1fr;gap:32px}}
+h1{font-weight:600;font-size:clamp(48px,7.4vw,104px);line-height:.96;letter-spacing:-.055em}
+h1 .g{color:#6b6c6f;display:block}
+.hright .lede{font-size:clamp(17px,1.7vw,20px);color:var(--dim);line-height:1.45}
+.hright .lede b{color:var(--ink);font-weight:500}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+.fine{margin-top:22px;font-family:var(--mono);font-size:13px;color:var(--dim);line-height:1.6}
+.fine b{color:var(--mid);font-weight:400}
+.fine a{color:var(--ok2);text-decoration:underline;text-underline-offset:3px;text-decoration-color:#2c4c3c}
+
+/* metric strip */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);margin-top:72px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.m{padding:22px 24px 22px 0}
+.m+.m{padding-left:24px;border-left:1px solid var(--line)}
+.m .v{font-family:var(--mono);font-size:clamp(26px,3vw,36px);letter-spacing:-.04em;line-height:1;color:var(--ink)}
+.m .v small{font-size:.5em;color:var(--dim);letter-spacing:0}
+.m .v.ok{color:var(--ok2)}
+.m .l{margin-top:10px;font-family:var(--mono);font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+@media(max-width:760px){.metrics{grid-template-columns:1fr 1fr}.m:nth-child(3){padding-left:0;border-left:0}.m:nth-child(n+3){border-top:1px solid var(--line)}}
+
+/* section scaffolding */
+section.s{padding:104px 0 0}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);display:flex;gap:10px;align-items:center}
+.eyebrow i{width:6px;height:6px;background:var(--ok)}
+h2{margin-top:16px;font-weight:600;font-size:clamp(30px,4.2vw,50px);line-height:1.02;letter-spacing:-.045em;max-width:820px}
+h2 .g{color:#6b6c6f}
+.sub{margin-top:18px;font-family:var(--mono);font-size:14px;color:var(--dim);max-width:640px;line-height:1.65}
+.card{background:var(--s1);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+
+/* demo row */
+.row{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:16px;margin-top:40px}
+@media(max-width:960px){.row{grid-template-columns:1fr}}
+.bar-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px}
+.seg button{font-family:var(--mono);font-size:12.5px;padding:5px 12px;border-radius:5px;color:var(--dim);transition:.15s}
+.seg button.on{background:var(--ink);color:var(--bg)}
+.run{font-family:var(--mono);font-size:12.5px;color:var(--mid);display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;transition:.15s}
+.run:hover{background:var(--s3);color:var(--ink)}
+.run i{width:6px;height:6px;background:var(--ok2)}
+.panes{position:relative;height:452px}
+.pane{position:absolute;inset:0;overflow:auto;transition:opacity .4s ease}
+.pane.hide{opacity:0;pointer-events:none}
+#pLift{display:flex;align-items:center;justify-content:center}
+pre{font-family:var(--mono);font-size:12.5px;line-height:1.72;padding:16px 18px;color:var(--mid);white-space:pre}
+#pLift pre{font-size:clamp(13px,1.5vw,15.5px);line-height:1.85}
+pre .k{color:var(--ink)} pre .n{color:var(--warm)} pre .c{color:var(--faint)}
+pre .x{transition:color .3s,text-decoration-color .3s,opacity .3s;text-decoration:line-through;text-decoration-color:transparent}
+.lifting pre .x{color:var(--cut);text-decoration-color:var(--cut);opacity:.7}
+.foot{display:flex;justify-content:space-between;gap:12px;padding:10px 14px;border-top:1px solid var(--line);font-family:var(--mono);font-size:12px;color:var(--dim)}
+.foot .ok{color:var(--ok2)}
+
+.nums{padding:22px}
+.nums h4{font-size:15px;font-weight:500}
+.nums .cap{font-family:var(--mono);font-size:12px;color:var(--dim);margin-top:4px}
+.bar{margin-top:24px}
+.bar .lb{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12.5px;color:var(--mid)}
+.bar .lb b{color:var(--ink);font-weight:400}
+.track{margin-top:9px;height:8px;background:var(--s3)}
+.fill{height:100%;width:0;background:var(--faint);transition:width 1.3s cubic-bezier(.2,.8,.2,1)}
+.fill.me{background:var(--ink)}
+.duo{display:grid;grid-template-columns:1fr 1fr;margin-top:26px;border-top:1px solid var(--line)}
+.duo div{padding-top:18px}
+.duo div+div{padding-left:18px;border-left:1px solid var(--line)}
+.duo .v{font-family:var(--mono);font-size:30px;letter-spacing:-.04em;line-height:1}
+.duo .v.ok{color:var(--ok2)}
+.duo .t{font-family:var(--mono);font-size:11.5px;color:var(--dim);margin-top:8px;text-transform:uppercase;letter-spacing:.05em}
+.runlog{margin-top:18px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-family:var(--mono);font-size:12.5px;line-height:1.75;color:var(--ink);white-space:pre;overflow-x:auto}
+.runlog .d{color:var(--dim)} .runlog .o{color:var(--ok2)}
+.note{margin-top:22px;font-family:var(--mono);font-size:11.5px;color:var(--dim);line-height:1.6}
+
+/* install */
+.ways{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:40px}
+@media(max-width:960px){.ways{grid-template-columns:1fr}}
+.way{display:flex;flex-direction:column}
+.way .hd{padding:18px 18px 0;display:flex;justify-content:space-between;align-items:baseline}
+.way .hd h4{font-size:16px;font-weight:550;letter-spacing:-.01em}
+.way .hd span{font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+.way p{padding:6px 18px 0;font-size:14px;color:var(--dim)}
+.term{margin:auto 12px 12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 0}
+.way p{margin-bottom:16px}
+.ln{display:flex;align-items:flex-start;gap:10px;padding:7px 12px}
+.ln code{flex:1;min-width:0;font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--ink);white-space:normal;overflow-wrap:anywhere}
+.ln code::-webkit-scrollbar{display:none}
+.ln code .p{color:var(--faint);user-select:none}
+.ln code .cm{color:var(--dim)}
+.cp{font-family:var(--mono);font-size:11px;color:var(--dim);padding:3px 8px;border:1px solid var(--line2);border-radius:5px;flex:none;transition:.15s}
+.cp:hover{color:var(--ink)}
+.cp.done{color:var(--ok2);border-color:#2c4c3c}
+
+/* toolkit stack */
+.stack{margin-top:40px;border-top:1px solid var(--line)}
+.it{display:grid;grid-template-columns:200px minmax(0,1fr) 170px;gap:24px;align-items:center;padding:22px 0;border-bottom:1px solid var(--line)}
+.it .nm{font-family:var(--mono);font-size:14px;color:var(--ink)}
+.it .nm span{display:block;color:var(--dim);font-size:12px;margin-top:3px}
+.it .w{color:var(--mid);font-size:15px}
+.pill{justify-self:end;font-family:var(--mono);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;padding:5px 10px;border:1px solid var(--line2);color:var(--mid);display:flex;align-items:center;gap:8px;white-space:nowrap}
+.pill i{width:6px;height:6px;background:var(--faint)}
+.pill.ok{color:var(--ok2);border-color:#24382d}.pill.ok i{background:var(--ok2)}
+.pill.wa{color:var(--warm);border-color:#3b3222}.pill.wa i{background:var(--warm)}
+@media(max-width:760px){.it{grid-template-columns:1fr;gap:10px}.pill{justify-self:start}}
+
+/* how */
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:40px}
+@media(max-width:960px){.three{grid-template-columns:1fr}}
+.feat .vis{height:146px;border-bottom:1px solid var(--line);padding:16px 18px;font-family:var(--mono);font-size:12px;line-height:1.8;color:var(--mid);overflow:hidden;white-space:nowrap}
+.feat .vis .x{color:var(--cut);text-decoration:line-through;opacity:.75}
+.feat .vis .k{color:var(--ink)} .feat .vis .d{color:var(--faint)} .feat .vis .o{color:var(--ok2)}
+.feat .txt{padding:16px 18px 20px}
+.feat h4{font-size:16px;font-weight:550;letter-spacing:-.01em;display:flex;gap:10px;align-items:baseline}
+.feat h4 span{font-family:var(--mono);font-size:12px;color:var(--faint);font-weight:400}
+.feat p{margin-top:6px;font-size:14px;color:var(--dim);line-height:1.55}
+
+footer{margin-top:120px;border-top:1px solid var(--line);padding:40px 0 56px}
+.fl{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:18px;font-family:var(--mono);font-size:12.5px;color:var(--dim)}
+.fl .lk{display:flex;gap:22px}
+.fl a:hover{color:var(--ink)}
+
+.rv{opacity:0;transform:translateY(12px);transition:opacity .6s ease,transform .6s ease}
+.rv.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}.rv{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<div class="banner"><span class="tag">v2</span>One command. Drop in a jar, zip, rar or folder, get source back. <a href="#install">Install</a></div>
+
+<nav><div class="wrap">
+  <div class="navl">
+    <a class="logo" href="#"><svg class="mark" width="20" height="24" viewBox="0 0 20 24"></svg>deflow</a>
+    <div class="links"><a href="#lift">Demo</a><a href="#install">Install</a><a href="#toolkit">Toolkit</a><a href="#how">How it works</a></div>
+  </div>
+  <div class="navr">
+    <a class="gh" href="https://github.com/daniiiiilllll546-oss/deobfuscator" target="_blank" rel="noopener">GitHub</a>
+    <a class="btn p sm" href="#install">Install skill</a>
+  </div>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <div class="proof"><svg class="mark" width="15" height="18" viewBox="0 0 20 24"></svg><span><b>CLI + Claude Code skill</b> for VM-obfuscated Java</span><span class="sep">·</span><span>Open source</span><span class="sep">·</span><span>MIT</span></div>
+  <div class="hgrid">
+    <h1>deflow.<span class="g">Obfuscated Java, back to real code.</span></h1>
+    <div class="hright">
+      <p class="lede"><b>Drop in a jar. Get source back.</b> deflow unpacks it, finds the VM, lifts every method to real bytecode, verifies it and decompiles it. One command.</p>
+      <div class="cta">
+        <button class="btn p" data-copy="git clone https://github.com/daniiiiilllll546-oss/deobfuscator.git ~/.claude/skills/deflow">Copy install command</button>
+        <a class="btn s" href="https://github.com/daniiiiilllll546-oss/deobfuscator" target="_blank" rel="noopener">Read the source</a>
+      </div>
+      <p class="fine">Free and open source. Needs <b>Java 17+</b>.<br>Everything else downloads itself. <a href="#limits">Known limits</a></p>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="m"><div class="v">1</div><div class="l">command</div></div>
+    <div class="m"><div class="v">7+</div><div class="l">input formats</div></div>
+    <div class="m"><div class="v ok">JVM</div><div class="l">verified output</div></div>
+    <div class="m"><div class="v">0</div><div class="l">methods guessed</div></div>
+  </div>
+</div></header>
+
+<section class="s" id="lift"><div class="wrap">
+  <div class="eyebrow"><i></i>The lift</div>
+  <h2>Same method. <span class="g">Before and after.</span></h2>
+  <div class="row">
+    <div class="card" id="demo">
+      <div class="bar-top">
+        <div class="seg"><button class="on" data-v="obf">obfuscated</button><button data-v="lift">lifted</button></div>
+        <button class="run" id="runBtn"><i></i><span>run deflow</span></button>
+      </div>
+      <div class="panes">
+<div class="pane" id="pObf"><pre><span class="k">static int</span> total(<span class="k">int</span>[] data, <span class="k">int</span> n) {
+<span class="x">  FlowFrame f = new FlowFrame(new Object[]{data, n}, 4);</span>
+<span class="x">  while (!f.done) switch (f.pc / 16) {</span>
+<span class="x">    case 0: __flow$3$0(f); break;</span>
+<span class="x">  }</span>
+  <span class="k">return</span> <span class="x">FlowFrame.i(f.result)</span>;
+}
+
+<span class="x">static void __flow$3$0(FlowFrame f) {</span>
+<span class="x">  switch (f.pc) {</span>
+<span class="x">  case 0:</span> <span class="x">f.push(Integer.valueOf(</span><span class="n">0</span><span class="x">), 1);</span>          <span class="x">f.pc = 1; return;</span>
+<span class="x">  case 1:</span> <span class="x">f.locals[2] = f.pop();</span>                 <span class="x">f.pc = 2; return;</span>
+<span class="x">  case 2:</span> <span class="x">f.push(Integer.valueOf(</span><span class="n">0</span><span class="x">), 1);</span>          <span class="x">f.pc = 3; return;</span>
+<span class="x">  case 3:</span> <span class="x">f.locals[3] = f.pop();</span>                 <span class="x">f.pc = 4; return;</span>
+<span class="x">  case 4:</span> <span class="x">f.push(f.locals[3], 1); f.push(f.locals[1], 1);</span>
+<span class="x">          f.pc = FlowFrame.i(f.pop()) &lt;= FlowFrame.i(f.pop()) ? 9 : 5; return;</span>
+<span class="x">  case 5:</span> <span class="x">f.push(f.locals[2], 1); f.push(f.locals[0], 1);</span>
+<span class="x">          f.push(f.locals[3], 1);</span>                <span class="x">f.pc = 6; return;</span>
+<span class="x">  case 6:</span> { <span class="k">int</span> k = <span class="x">FlowFrame.i(f.pop())</span>; <span class="k">int</span>[] a = (<span class="k">int</span>[]) <span class="x">f.pop()</span>;
+<span class="x">            f.push(Integer.valueOf(</span>a[k]<span class="x">), 1);</span> }           <span class="x">f.pc = 7; return;</span>
+<span class="x">  case 7:</span> <span class="x">f.push(Integer.valueOf(FlowFrame.i(f.pop()) + FlowFrame.i(f.pop())), 1);</span>
+<span class="x">          f.locals[2] = f.pop();</span>                 <span class="x">f.pc = 8; return;</span>
+<span class="x">  case 8:</span> <span class="x">f.locals[3] = Integer.valueOf(FlowFrame.i(f.locals[3]) + </span><span class="n">1</span><span class="x">);</span> <span class="x">f.pc = 4; return;</span>
+<span class="x">  case 9:</span> <span class="x">f.result = f.locals[2]; f.done = true; return;</span>
+<span class="x">  }</span>
+<span class="x">}</span></pre></div>
+<div class="pane hide" id="pLift"><pre><span class="k">static int</span> total(<span class="k">int</span>[] data, <span class="k">int</span> n) {
+  <span class="k">int</span> sum = <span class="n">0</span>;
+  <span class="k">for</span> (<span class="k">int</span> i = <span class="n">0</span>; i &lt; n; i++)
+    sum += data[i];
+  <span class="k">return</span> sum;
+}
+
+<span class="c">// 30 lines of interpreter, 6 lines of Java.</span>
+<span class="c">// scaffolding deleted · frames rebuilt · verify OK</span></pre></div>
+      </div>
+      <div class="foot"><span id="footL">interpreter form · 2 methods · 30 lines</span><span>illustrative method</span></div>
+    </div>
+
+    <div class="card nums" id="numbers">
+      <h4>Example run</h4>
+      <div class="cap">a VM-protected plugin, one command</div>
+      <div class="runlog"><span class="d">$</span> deflow plugin.rar
+<span class="d">vm:</span> auto-detected
+<span class="d">methods lifted:</span>   1611
+<span class="d">methods kept:</span>     4
+<span class="o">VERIFY ERRORS:    0</span>
+<span class="d">decompiled</span> 457 <span class="d">.java files</span></div>
+      <div class="bar"><div class="lb"><span>methods back in real control flow</span><b>99.7%</b></div><div class="track"><div class="fill me" data-w="99.75"></div></div></div>
+      <p class="note">Methods it can't model stay in interpreter form, still correct. Some lifted methods are too tangled for either decompiler and show as bytecode; the report counts them. Verified means well-formed, not proven identical.</p>
+    </div>
+  </div>
+</div></section>
+
+<section class="s" id="install"><div class="wrap rv">
+  <div class="eyebrow"><i></i>Install</div>
+  <h2>One command. <span class="g">Three ways to run it.</span></h2>
+  <p class="sub">Needs Java 17+. ASM, Vineflower and CFR download on first run with pinned checksums.</p>
+  <div class="ways">
+    <div class="card way">
+      <div class="hd"><h4>Install</h4><span>once</span></div>
+      <p>Clone it as a Claude Code skill and put the command on your PATH.</p>
+      <div class="term">
+        <div class="ln"><code><span class="p">$ </span>git clone https://github.com/daniiiiilllll546-oss/deobfuscator.git ~/.claude/skills/deflow</code><button class="cp" data-copy="git clone https://github.com/daniiiiilllll546-oss/deobfuscator.git ~/.claude/skills/deflow">copy</button></div>
+        <div class="ln"><code><span class="p">$ </span>ln -s ~/.claude/skills/deflow/deflow /usr/local/bin/deflow</code><button class="cp" data-copy="ln -s ~/.claude/skills/deflow/deflow /usr/local/bin/deflow">copy</button></div>
+      </div>
+    </div>
+    <div class="card way">
+      <div class="hd"><h4>Terminal</h4><span>any archive</span></div>
+      <p>Point it at whatever you have. Output lands in ./name-deflow.</p>
+      <div class="term">
+        <div class="ln"><code><span class="p">$ </span>deflow plugin.jar</code><button class="cp" data-copy="deflow plugin.jar">copy</button></div>
+        <div class="ln"><code><span class="p">$ </span>deflow release.rar</code><button class="cp" data-copy="deflow release.rar">copy</button></div>
+        <div class="ln"><code><span class="cm"># also .zip .7z .tar.gz, folders, .class</span></code></div>
+      </div>
+    </div>
+    <div class="card way">
+      <div class="hd"><h4>Claude Code</h4><span>skill</span></div>
+      <p>Hand Claude the file. It runs deflow and walks you through the report.</p>
+      <div class="term">
+        <div class="ln"><code><span class="p">&gt; </span>/deflow ~/Downloads/plugin.rar</code><button class="cp" data-copy="/deflow ~/Downloads/plugin.rar">copy</button></div>
+        <div class="ln"><code><span class="cm"># or: "this jar is obfuscated, clean it up"</span></code></div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<section class="s" id="toolkit"><div class="wrap rv">
+  <div class="eyebrow"><i></i>Toolkit</div>
+  <h2>What ships. <span class="g">What each part does.</span></h2>
+  <div class="stack">
+    <div class="it"><div class="nm">deflow<span>the command</span></div><div class="w">Unpacks any archive, finds every jar, runs lift, verify and decompile on each, writes source and a report.</div><span class="pill ok"><i></i>stable</span></div>
+    <div class="it"><div class="nm">Lift<span>vm detection</span></div><div class="w">Finds the VM frame class by itself, lifts every class, keeps what it can't model, explains why.</div><span class="pill ok"><i></i>automatic</span></div>
+    <div class="it"><div class="nm">GroupLifter<span>core</span></div><div class="w">Rebuilds one method from its VM cases: strips dispatch, maps locals, re-threads jumps, rewrites object creation.</div><span class="pill ok"><i></i>stable</span></div>
+    <div class="it"><div class="nm">Verify<span>proof</span></div><div class="w">Loads and links every lifted class with the JVM verifier. Add your libraries with --cp to check the classes that need them.</div><span class="pill ok"><i></i>stable</span></div>
+    <div class="it"><div class="nm">Decompile<span>two decompilers</span></div><div class="w">Vineflower for the whole jar, CFR as a second opinion on classes it gives up on. Methods neither can rebuild show as bytecode, flagged in the report.</div><span class="pill ok"><i></i>automatic</span></div>
+    <div class="it" id="limits"><div class="nm">Encrypted strings<span>out of scope</span></div><div class="w">Decrypting strings usually needs the program running. deflow leaves them as they are.</div><span class="pill wa"><i></i>manual</span></div>
+    <div class="it"><div class="nm">Other VMs<span>open</span></div><div class="w">Built for the __flow$G$C boxed-stack VM. Same shape, other names: edit the recognizers in ClassLifter.</div><span class="pill"><i></i>edit to fit</span></div>
+  </div>
+</div></section>
+
+<section class="s" id="how"><div class="wrap rv">
+  <div class="eyebrow"><i></i>How it works</div>
+  <h2>The VM stack is the real stack. <span class="g">Lifting is mostly deletion.</span></h2>
+  <p class="sub">The protector turns each method into a switch(pc) interpreter, one original instruction per case. Its operand stack mirrors the JVM's one to one, so the instruction survives once the wrapping goes.</p>
+  <div class="three">
+    <div class="card feat"><div class="vis"><span class="x">f.push(Integer.valueOf(</span>x<span class="x">), 1);</span><br><span class="x">f.locals[2] = f.pop();</span><br><span class="x">FlowFrame.i(</span>a<span class="x">)</span> + <span class="x">FlowFrame.i(</span>b<span class="x">)</span><br><span class="x">f.pc = 8; return;</span><br><span class="d">// push · pop · pc · box: gone</span></div>
+      <div class="txt"><h4><span>01</span>Strip</h4><p>Drop push, pop, pc writes, done flags and the boxing the protector added as type hints.</p></div></div>
+    <div class="card feat"><div class="vis"><span class="d">f.locals[n]  </span>→ <span class="k">slot 200+2n</span><br><span class="d">f.pc = 4     </span>→ <span class="k">GOTO L4</span><br><span class="d">rearrange(3) </span>→ <span class="k">DUP_X1</span><br><span class="d">construct(T) </span>→ <span class="k">NEW · DUP · INVOKESPECIAL</span><br><span class="d">done = true  </span>→ <span class="k">IRETURN</span></div>
+      <div class="txt"><h4><span>02</span>Re-thread</h4><p>VM locals become real slots, pc jumps become labels, stack shuffles become real ops. Try/catch ranges rebuilt.</p></div></div>
+    <div class="card feat"><div class="vis"><span class="d">$</span> <span class="k">deflow.Verify plugin.deflow.jar</span><br><span class="d">verified OK: every class</span><br><span class="d">missing deps: add with --cp</span><br><span class="o">VERIFY ERRORS: 0</span><br><span class="d">// failure → roll back method</span></div>
+      <div class="txt"><h4><span>03</span>Verify</h4><p>ASM rebuilds stack-map frames, the JVM verifier loads every class. Anything that fails rolls back.</p></div></div>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <div class="fl">
+    <a class="logo" href="#" style="font-size:16px"><svg class="mark" width="15" height="18" viewBox="0 0 20 24"></svg>deflow</a>
+    <div class="lk"><a href="https://github.com/daniiiiilllll546-oss/deobfuscator" target="_blank" rel="noopener">GitHub</a><a href="https://github.com/daniiiiilllll546-oss/deobfuscator/blob/main/SKILL.md" target="_blank" rel="noopener">SKILL.md</a><a href="https://github.com/daniiiiilllll546-oss/deobfuscator/tree/main/references" target="_blank" rel="noopener">References</a><span>MIT</span></div>
+  </div>
+</div></footer>
+
+<script>
+/* mark: dot-matrix "d" that assembles from scattered dots */
+const D=['....#','....#','.####','#...#','#...#','#...#','.####'];
+const NS='http://www.w3.org/2000/svg';
+document.querySelectorAll('svg.mark').forEach((svg,si)=>{
+  const dots=[];D.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==='#')dots.push([x,y])}));
+  dots.forEach(([x,y],i)=>{const r=document.createElementNS(NS,'rect');
+    const tx=x*4,ty=y*3.4+0.4;r.setAttribute('width',2.6);r.setAttribute('height',2.6);r.setAttribute('fill','#e9e9ec');
+    r.setAttribute('x',tx);r.setAttribute('y',ty);
+    if(si===0){const ox=(Math.random()*20)|0,oy=(Math.random()*22)|0;r.style.transform=`translate(${ox-tx}px,${oy-ty}px)`;r.style.opacity='.25';
+      r.style.transition=`transform .7s cubic-bezier(.2,.8,.2,1) ${i*35}ms,opacity .7s ${i*35}ms`;
+      r.getBoundingClientRect();setTimeout(()=>{r.style.transform='none';r.style.opacity='1'},60);}
+    svg.appendChild(r);});
+});
+
+/* copy */
+function copy(b){const t=b.dataset.copy;const done=()=>{const o=b.textContent;b.textContent=b.classList.contains('cp')?'copied':'Copied';b.classList.add('done');setTimeout(()=>{b.textContent=o;b.classList.remove('done')},1400)};
+  if(navigator.clipboard)navigator.clipboard.writeText(t).then(done,()=>{fb(t);done()});else{fb(t);done()}}
+function fb(t){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}
+document.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click',()=>copy(b)));
+
+/* demo */
+const demo=document.getElementById('demo'),pO=document.getElementById('pObf'),pL=document.getElementById('pLift'),
+  seg=[...demo.querySelectorAll('.seg button')],rb=document.getElementById('runBtn'),fl=document.getElementById('footL');
+let st='obf',busy=false;
+function show(v){st=v;seg.forEach(b=>b.classList.toggle('on',b.dataset.v===v));pO.classList.toggle('hide',v!=='obf');pL.classList.toggle('hide',v!=='lift');demo.classList.remove('lifting');
+  if(v==='lift'){fl.innerHTML='<span class="ok">■ verified</span> · 1 method · 6 lines';rb.querySelector('span').textContent='show obfuscated'}
+  else{fl.textContent='interpreter form · 2 methods · 30 lines';rb.querySelector('span').textContent='run deflow'}}
+function lift(){if(busy)return;if(st==='lift'){show('obf');return}busy=true;pO.scrollTop=0;demo.classList.add('lifting');fl.textContent='stripping scaffolding…';
+  setTimeout(()=>{fl.textContent='rebuilding frames…'},700);setTimeout(()=>{show('lift');busy=false},1500)}
+rb.addEventListener('click',lift);
+seg.forEach(b=>b.addEventListener('click',()=>{if(busy)return;(b.dataset.v==='lift'&&st==='obf')?lift():show(b.dataset.v)}));
+
+/* reveal, bars, auto-run once */
+let auto=false;
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting)return;const t=e.target;
+  if(t.id==='numbers')t.querySelectorAll('.fill').forEach(f=>f.style.width=f.dataset.w+'%');
+  else if(t.id==='demo'){if(!auto){auto=true;setTimeout(()=>{if(st==='obf')lift()},1400)}}
+  else t.classList.add('in');io.unobserve(t)}),{threshold:.25});
+document.querySelectorAll('.rv,#numbers,#demo').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>
