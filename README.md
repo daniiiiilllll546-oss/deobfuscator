@@ -27,17 +27,24 @@ Accepts `.jar`, `.war`, `.zip`, `.rar`, `.7z`, `.tar.gz`, a folder, or a
 
 ## Install
 
-Needs a JDK 17+ and `curl`. ASM, Vineflower and CFR download on first run (checksums
-pinned) into `~/.cache/deflow`.
+**In Claude Code** (gives you `/deflow`):
+
+```
+/plugin install deflow --marketplace daniiiiilllll546-oss/deobfuscator
+```
+
+Then `/deflow path/to/file.jar`, or just hand Claude an obfuscated jar. As a
+plugin the full command name is `/deflow:deflow`; typing `/deflow` finds it.
+
+**Terminal + skill in one go** (plain `/deflow`, plus the `deflow` command on
+your PATH, no sudo; run again to update):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/daniiiiilllll546-oss/deobfuscator/main/install.sh | bash
 ```
 
-This clones deflow into `~/.claude/skills/deflow`, which makes it a **Claude
-Code skill** (hand Claude an obfuscated jar, or say `/deflow path/to/file`),
-and links the `deflow` command into a writable folder on your PATH, no sudo.
-Run it again to update.
+Needs a JDK 17+ and `curl`. ASM, Vineflower and CFR download on first run
+(checksums pinned) into `~/.cache/deflow`.
 
 ## Options
 
@@ -75,8 +82,9 @@ src/deflow/            the lifter (Java + ASM)
   ClassLifter.java     per class: pair chunks with drivers, re-check, roll back
   GroupLifter.java     rebuild one method from its VM cases
   Verify.java          load + link every class with the JVM verifier
-SKILL.md               Claude Code skill
-references/            internals.md (how it works), manual.md (debugging)
+skills/deflow/         Claude Code skill (SKILL.md, references/)
+.claude-plugin/        plugin + marketplace manifests
+install.sh             one-line installer
 docs/                  website
 ```
 
