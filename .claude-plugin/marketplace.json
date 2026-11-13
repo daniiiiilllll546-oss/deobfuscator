@@ -1,0 +1,9 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "deflow",
+  "description": "Deobfuscate VM-flattened Java in one command.",
+  "owner": { "name": "daniiiiilllll546-oss", "url": "https://github.com/daniiiiilllll546-oss" },
+  "plugins": [
+    { "name": "deflow", "description": "Lift VM-obfuscated Java back to readable, verified source.", "source": "./", "category": "development" }
+  ]
+}

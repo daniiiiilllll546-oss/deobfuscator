@@ -1,8 +1,9 @@
 ---
 name: deflow
 description: Deobfuscate VM-flattened Java in one command. Use when the user hands over a .jar, .zip, .rar, .7z, folder or .class whose decompiled methods are switch(pc) stack-machine interpreters (a frame object with push/pop, a while(!done) driver, __flow$G$C chunk methods) instead of normal if/while/for, or simply asks to deobfuscate, unflatten, lift, or decompile an obfuscated Java program, plugin, or Minecraft mod. Runs extraction, VM detection, lifting, JVM verification and decompilation automatically.
+argument-hint: <jar, archive or folder>
 metadata:
-  version: "2"
+  version: "2.1"
 ---
 
 # deflow
@@ -10,8 +11,11 @@ metadata:
 One command turns a VM-obfuscated Java program back into readable source:
 
 ```bash
-"<this skill's directory>/deflow" <file-or-folder>
+"<this skill's base directory>/deflow" <file-or-folder>
 ```
+
+Invoked as `/deflow <path>`: the path is the input. No path given: ask the user
+for the file (or use the one they just mentioned or attached), then run.
 
 Input can be a `.jar`/`.war`, an archive (`.zip`, `.rar`, `.7z`, `.tar.gz`, …),
 a folder, or a `.class`. Archives inside archives are unpacked one level deep.

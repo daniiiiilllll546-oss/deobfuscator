@@ -1,0 +1,9 @@
+{
+  "name": "deflow",
+  "version": "2.1.0",
+  "description": "Deobfuscate VM-flattened Java in one command: give it a jar, zip, rar or folder and get lifted, JVM-verified, decompiled source back.",
+  "author": { "name": "daniiiiilllll546-oss", "url": "https://github.com/daniiiiilllll546-oss" },
+  "homepage": "https://daniiiiilllll546-oss.github.io/deobfuscator/",
+  "repository": "https://github.com/daniiiiilllll546-oss/deobfuscator",
+  "license": "MIT"
+}

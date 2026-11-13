@@ -1,13 +1,22 @@
 #!/usr/bin/env bash
-# Install or update deflow: clone into ~/.claude/skills/deflow (also makes it a
-# Claude Code skill) and link the `deflow` command into a writable folder on PATH.
+# Install or update deflow: clone it, register it as the Claude Code skill
+# /deflow, and link the `deflow` command into a writable folder on PATH.
 set -euo pipefail
-DIR="${DEFLOW_DIR:-$HOME/.claude/skills/deflow}"
+DIR="${DEFLOW_DIR:-$HOME/.local/share/deflow}"
+SKILLS="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
 REPO=https://github.com/daniiiiilllll546-oss/deobfuscator.git
 
 if [ -d "$DIR/.git" ]; then git -C "$DIR" pull -q --ff-only; echo "deflow: updated $DIR"
 else mkdir -p "$(dirname "$DIR")"; git clone -q "$REPO" "$DIR"; echo "deflow: installed to $DIR"; fi
 chmod +x "$DIR/deflow"
+
+# Claude Code skill: ~/.claude/skills/deflow -> repo skill folder (gives /deflow).
+mkdir -p "$SKILLS"
+if [ -e "$SKILLS/deflow" ] && [ ! -L "$SKILLS/deflow" ]; then
+  echo "deflow: $SKILLS/deflow exists and is not a link; leaving it alone" >&2
+else
+  ln -sfn "$DIR/skills/deflow" "$SKILLS/deflow"; echo "deflow: Claude Code skill ready: /deflow (new sessions)"
+fi
 
 # First folder that is on PATH and writable without sudo.
 for d in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin" "$HOME/bin"; do
